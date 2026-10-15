@@ -14,8 +14,8 @@ function count(pixels, predicate) {
   }
   return result;
 }
-const blue = (r, g, b) => r < 30 && g > 90 && b > 170;
-const orange = (r, g, b) => r > 200 && g > 110 && g < 140 && b < 35;
+const blue = (r, g, b) => r < 20 && g > 140 && b > 220;
+const red = (r, g, b) => r > 220 && g < 80 && b > 50 && b < 100;
 
 test('the circular aperture clips the corners and retains an opaque center', () => {
   const pixels = trace(195, 493, true, 160);
@@ -30,14 +30,14 @@ test('both headlights and walls remain visible throughout the movement range', (
   for (const car of [80, 195, 286]) for (const observer of [430, 493, 565]) {
     const pixels = trace(car, observer, true, 160);
     assert.ok(count(pixels, blue) > 0, `blue: car=${car}, observer=${observer}`);
-    assert.ok(count(pixels, orange) > 0, `orange: car=${car}, observer=${observer}`);
+    assert.ok(count(pixels, red) > 0, `red: car=${car}, observer=${observer}`);
     assert.ok(count(pixels, (r, g, b) => r > 150 && r > g && g > b) > 1000);
   }
 });
 
 test('disabling the second headlight removes its reflection while retaining the first', () => {
   const pixels = trace(195, 493, false, 160);
-  assert.equal(count(pixels, orange), 0);
+  assert.equal(count(pixels, red), 0);
   assert.ok(count(pixels, blue) > 0);
 });
 
