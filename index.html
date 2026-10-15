@@ -12,8 +12,12 @@ button:focus-visible{outline:2px solid #236bc4;outline-offset:3px}
 .layout{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:12px;min-height:0;min-width:0}
 .layout.menu-open{grid-template-columns:minmax(0,1fr) clamp(180px,25vw,260px)}
 .scene-panel{display:flex;align-items:center;justify-content:center;min-width:0;min-height:0}
-.canvas{border:1px solid #d4dbe1;border-radius:7px;overflow:hidden;flex:none}
+.canvas{border:1px solid #d4dbe1;border-radius:7px;overflow:hidden;flex:none;position:relative}
 svg{display:block;width:100%;height:100%;touch-action:none}
+.mirror-view{position:absolute;top:8px;right:8px;width:var(--mirror-view-size,200px);padding:7px;background:#fffffff0;border:1px solid #cdd6dd;border-radius:10px;box-shadow:0 2px 9px #263b4b20;pointer-events:none}
+.mirror-view figcaption{font-size:12px;text-align:center;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mirror-view{margin:0}
+.mirror-view canvas{display:block;width:100%;aspect-ratio:1;border:5px solid #d77a35;border-radius:50%;background:#dbe9f0;box-shadow:inset 0 0 0 2px #687d87,0 1px 3px #263b4b35}
 .side{border:1px solid #d4dbe1;border-radius:7px;padding:12px;min-height:0;max-height:100%;overflow:auto;align-self:start}
 [hidden]{display:none!important}
 h2{font-size:16px;margin:0 0 8px}
@@ -32,8 +36,9 @@ input[type=checkbox]{accent-color:#236bc4}
 <text x="18" y="282" font-size="24" fill="#57616a">車 →</text>
 <g id="virtualLayer"></g><g id="rayLayer"></g><g id="mirrorLayer"></g><g id="normalLayer"></g><g id="objectsLayer"></g><g id="labelsLayer"></g>
 </svg>
+<figure id="mirrorView" class="mirror-view" hidden><figcaption>観測者から見た鏡</figcaption><canvas id="mirrorImage" width="240" height="240" role="img" aria-label="円形の凸面鏡に映る車、ヘッドライト、道路と周囲の壁"></canvas></figure>
 </div></section>
-<aside id="menu" class="side" hidden><h2>操作</h2><div class="checks"><label><input id="rays" type="checkbox"> 光線を表示</label><label><input id="virtual" type="checkbox" checked> 反射光の逆延長を表示</label><label><input id="normal" type="checkbox"> 反射点の法線を表示</label><label><input id="separate" type="checkbox" checked> 2つの光源を表示</label></div></aside></div>
+<aside id="menu" class="side" hidden><h2>操作</h2><div class="checks"><label><input id="rays" type="checkbox"> 光線を表示</label><label><input id="virtual" type="checkbox" checked> 反射光の逆延長を表示</label><label><input id="normal" type="checkbox"> 反射点の法線を表示</label><label><input id="separate" type="checkbox" checked> 2つの光源を表示</label><label><input id="mirrorViewToggle" type="checkbox"> 鏡の見え方を表示</label></div></aside></div>
 </main><script>
 (()=>{'use strict';
 const NS='http://www.w3.org/2000/svg', $=id=>document.getElementById(id), V=(x,y)=>({x,y}),add=(a,b)=>V(a.x+b.x,a.y+b.y),sub=(a,b)=>V(a.x-b.x,a.y-b.y),mul=(a,s)=>V(a.x*s,a.y*s),dot=(a,b)=>a.x*b.x+a.y*b.y,unit=a=>mul(a,1/Math.hypot(a.x,a.y)),len=a=>Math.hypot(a.x,a.y);
@@ -52,6 +57,73 @@ function specular(src,eye){ // minimize discrepancy between reflected incoming r
   let best=null;
   for(const [a,b] of solutions){let lo=a,hi=b;for(let j=0;j<65;j++){const u=lo+(hi-lo)*.382,v=lo+(hi-lo)*.618;if(score(u)<score(v))hi=v;else lo=u}let t=(lo+hi)/2,p=point(t),n=unit(sub(p,C)),frontS=dot(unit(sub(src,p)),n),frontE=dot(unit(sub(eye,p)),n);let cost=score(t);if(frontS>0&&frontE>0&&(!best||cost<best.cost))best={p,n,t,cost};}
   return best;
+}
+// Trace the scene reflected by a circular patch of the same spherical mirror.
+// World x/y match the plan above; z supplies heights for the car and walls.
+function traceMirror(car,observer,separate,size){
+ const pixels=new Uint8ClampedArray(size*size*4),angle=(amin+amax)/2;
+ const nx=Math.cos(angle),ny=Math.sin(angle),tx=ny,ty=-nx,aperture=26,mirrorHeight=42;
+ // Boxes: xmin,ymin,zmin,xmax,ymax,zmax,material. The northeast block is behind the mirror.
+ const boxes=[[-1200,-1200,0,320,248,90,1],[-1200,378,0,320,1400,80,1],[444,378,0,1400,1400,100,1],
+  [car-40,288,5,car+38,338,18,2],[car-22,293,18,car+16,333,29,3],
+  [car+37.9,293,9,car+39,303,15,4]];
+ if(separate)boxes.push([car+37.9,323,9,car+39,333,15,5]);
+ for(const x of [car-29,car+15])for(const y of [284,335])boxes.push([x,y,2,x+15,y+7,10,6]);
+ for(let py=0;py<size;py++)for(let px=0;px<size;px++){
+  const u=((px+.5)/size*2-1)*aperture,v=(1-(py+.5)/size*2)*aperture,q=u*u+v*v,offset=(py*size+px)*4;
+  if(q>aperture*aperture)continue;
+  const depth=Math.sqrt(R*R-q),sx=C.x+nx*depth+tx*u,sy=C.y+ny*depth+ty*u,sz=mirrorHeight+v;
+  const mx=(sx-C.x)/R,my=(sy-C.y)/R,mz=v/R;
+  let ex=382-sx,ey=observer-sy,ez=mirrorHeight-sz;
+  const el=Math.hypot(ex,ey,ez);ex/=el;ey/=el;ez/=el;
+  const cos=ex*mx+ey*my+ez*mz;
+  const dx=2*cos*mx-ex,dy=2*cos*my-ey,dz=2*cos*mz-ez;
+  let nearest=dz<0?-sz/dz:Infinity,material=0,axis=2,normal=1;
+  for(const box of boxes){
+   let near=-Infinity,far=Infinity,hitAxis=0,hitNormal=1;
+   for(let a=0;a<3;a++){
+    const origin=a===0?sx:a===1?sy:sz,direction=a===0?dx:a===1?dy:dz;
+    if(Math.abs(direction)<1e-9){if(origin<box[a]||origin>box[a+3]){far=-Infinity;break}continue}
+    let t0=(box[a]-origin)/direction,t1=(box[a+3]-origin)/direction;
+    if(t0>t1)[t0,t1]=[t1,t0];
+    if(t0>near){near=t0;hitAxis=a;hitNormal=direction>0?-1:1}
+    far=Math.min(far,t1);if(near>far)break;
+   }
+   if(near>.01&&near<=far&&near<nearest){nearest=near;material=box[6];axis=hitAxis;normal=hitNormal}
+  }
+  let color;
+  if(!Number.isFinite(nearest)){
+   const sky=Math.min(1,Math.max(0,dz));color=[204-35*sky,227-20*sky,239-9*sky];
+  }else{
+   const x=sx+dx*nearest,y=sy+dy*nearest,z=sz+dz*nearest;
+   if(material===0){
+    const road=(y>=248&&y<=378)||(x>=320&&x<=444);
+    const line=(Math.abs(y-313)<1.6&&(x<320||x>444)&&((x%28+28)%28)<15)||(Math.abs(x-382)<1.6&&(y<248||y>378)&&((y%28+28)%28)<15);
+    const curb=(Math.abs(y-248)<3||Math.abs(y-378)<3)&&(x<320||x>444)||(Math.abs(x-320)<3||Math.abs(x-444)<3)&&(y<248||y>378);
+    color=line?[239,241,232]:curb?[187,193,192]:road?[123,134,142]:[195,205,187];
+    // A soft contact shadow anchors the car to the road.
+    if(x>car-44&&x<car+43&&y>283&&y<345)color=color.map(c=>c*.79);
+   }else if(material===1){
+    const along=axis===0?y:x,tile=((along%64+64)%64),level=((z%30+30)%30);
+    color=axis===2?[171,177,170]:tile>16&&tile<42&&z>24&&z<72&&level>8&&level<23?[105,139,151]:[225,215,195];
+    if(axis!==2&&(level<1.2||tile<.8))color=[190,181,165];
+   }else if(material===2){color=axis===2?[120,159,185]:[83,123,154];
+   }else if(material===3){color=axis===2?[139,174,198]:[40,75,97];
+   }else if(material===4){color=[24,115,201];
+   }else if(material===5){color=[232,135,30];
+   }else{color=[38,47,54]}
+   if(material!==4&&material!==5){const light=axis===2?1:axis===0?(normal<0?.83:.96):(normal<0?.91:.76);color=color.map(c=>c*light)}
+  }
+  const edge=1-.10*q/(aperture*aperture);
+  pixels[offset]=color[0]*edge;pixels[offset+1]=color[1]*edge;pixels[offset+2]=color[2]*edge;pixels[offset+3]=255;
+ }
+ return pixels;
+}
+let mirrorFrame=0;
+function updateMirrorView(){
+ const show=$('mirrorViewToggle').checked;$('mirrorView').hidden=!show;
+ if(!show||mirrorFrame)return;
+ mirrorFrame=requestAnimationFrame(()=>{mirrorFrame=0;if(!$('mirrorViewToggle').checked)return;const surface=$('mirrorImage'),ctx=surface.getContext('2d'),image=ctx.createImageData(surface.width,surface.height);image.data.set(traceMirror(state.car,state.observer,$('separate').checked,surface.width));ctx.putImageData(image,0,0)});
 }
 function render(){for(const id of ['rayLayer','mirrorLayer','virtualLayer','normalLayer','objectsLayer','labelsLayer'])$(id).replaceChildren();const car=state.car,oy=state.observer,eye=V(382,oy),lights=[V(car+34,298),V(car+34,328)],colors=['#1873c9','#d87b19'],mirror=$('mirrorLayer'),rays=$('rayLayer'),vir=$('virtualLayer'),normals=$('normalLayer'),obj=$('objectsLayer'),lab=$('labelsLayer');
  // arc silvered towards intersection
@@ -89,12 +161,13 @@ function render(){for(const id of ['rayLayer','mirrorLayer','virtualLayer','norm
  e(person,'path',{d:'M-6-5 Q0-10 6-5',fill:'none',stroke:'#6e5848','stroke-width':1.5,'stroke-linecap':'round'});
  e(obj,'circle',{cx:eye.x,cy:eye.y+8,r:35,fill:'transparent','data-drag':'observer'});
  e(lab,'text',{x:eye.x+36,y:eye.y+8,'font-size':24,fill:'#37434d'},'観測者');
+ updateMirrorView();
  }
- ['rays','virtual','normal','separate'].forEach(id=>$(id).addEventListener('input',render));
+ ['rays','virtual','normal','separate','mirrorViewToggle'].forEach(id=>$(id).addEventListener('input',render));
  $('menuToggle').addEventListener('click',()=>{const open=$('menu').hidden;$('menu').hidden=!open;document.querySelector('.layout').classList.toggle('menu-open',open);$('menuToggle').setAttribute('aria-expanded',String(open));$('menuToggle').textContent=open?'メニューを閉じる':'メニューを表示'});
  const panel=document.querySelector('.scene-panel'),canvas=document.querySelector('.canvas');
  // Fit the full diagram inside both available dimensions, keeping its aspect ratio.
- new ResizeObserver(()=>{const width=Math.max(0,Math.min(panel.clientWidth,(panel.clientHeight-2)*760/600+2));canvas.style.width=`${width}px`;canvas.style.height=`${Math.max(0,(width-2)*600/760+2)}px`}).observe(panel);
+ new ResizeObserver(()=>{const width=Math.max(0,Math.min(panel.clientWidth,(panel.clientHeight-2)*760/600+2)),height=Math.max(0,(width-2)*600/760+2);canvas.style.width=`${width}px`;canvas.style.height=`${height}px`;canvas.style.setProperty('--mirror-view-size',`${Math.max(0,Math.min(250,Math.max(120,width*.32),height*.72)-16)}px`)}).observe(panel);
  let drag=null;const scene=$('scene');
  function pos(ev){const p=scene.createSVGPoint();p.x=ev.clientX;p.y=ev.clientY;return p.matrixTransform(scene.getScreenCTM().inverse())}
  scene.addEventListener('pointerdown',ev=>{const target=ev.target.getAttribute('data-drag');if(!target||drag||ev.button!==0)return;const p=pos(ev);drag={target,pointerId:ev.pointerId,offset:target==='car'?p.x-state.car:p.y-state.observer};scene.setPointerCapture(ev.pointerId);scene.classList.add('dragging');ev.preventDefault()});
