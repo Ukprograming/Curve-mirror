@@ -2,27 +2,46 @@
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>カーブミラーと2つのヘッドライト</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#fff;color:#20252c;font:15px/1.6 system-ui,-apple-system,'Segoe UI',sans-serif}main{max-width:1030px;margin:auto;padding:18px}h1{font-size:22px;margin:0 0 5px}p{margin:5px 0 12px;color:#53606b}.layout{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:16px;align-items:start}.canvas{border:1px solid #d4dbe1;border-radius:7px;overflow:hidden}svg{display:block;width:100%;height:auto;touch-action:none}.side{border:1px solid #d4dbe1;border-radius:7px;padding:15px}h2{font-size:16px;margin:0 0 8px}.control{margin:13px 0}.control label{display:flex;justify-content:space-between}.control input[type=range]{width:100%;accent-color:#236bc4}.checks{display:grid;gap:8px;margin:15px 0}.checks label{cursor:pointer}input[type=checkbox]{accent-color:#236bc4}button{background:white;border:1px solid #aeb9c2;border-radius:5px;padding:6px 12px;cursor:pointer}.key{display:flex;flex-wrap:wrap;gap:10px;font-size:13px;padding:9px 12px;border-top:1px solid #e1e6eb}.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}.small{font-size:12px;color:#596772}.view{border:1px solid #d4dbe1;border-radius:7px;margin-top:12px;padding:12px}.view svg{max-height:170px}.explain{margin-top:15px;border-top:1px solid #e0e5ea;padding-top:12px}.explain p{color:#303a43}@media(max-width:760px){.layout{grid-template-columns:1fr}.side{order:2}}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:#20252c;font:15px/1.6 system-ui,-apple-system,'Segoe UI',sans-serif}
+main{width:100%;height:100vh;height:100dvh;padding:clamp(8px,2vmin,18px);display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px}
+.header{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
+h1{font-size:22px;margin:0}
+button{font:inherit;background:#fff;color:inherit;border:1px solid #aeb9c2;border-radius:5px;min-height:44px;padding:6px 12px;cursor:pointer}
+button:focus-visible{outline:2px solid #236bc4;outline-offset:3px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:12px;min-height:0;min-width:0}
+.layout.menu-open{grid-template-columns:minmax(0,1fr) clamp(180px,25vw,260px)}
+.scene-panel{display:flex;align-items:center;justify-content:center;min-width:0;min-height:0}
+.canvas{border:1px solid #d4dbe1;border-radius:7px;overflow:hidden;flex:none}
+svg{display:block;width:100%;height:100%;touch-action:none}
+.side{border:1px solid #d4dbe1;border-radius:7px;padding:12px;min-height:0;max-height:100%;overflow:auto;align-self:start}
+[hidden]{display:none!important}
+h2{font-size:16px;margin:0 0 8px}
+[data-drag]{cursor:grab}
+#scene.dragging,#scene.dragging [data-drag]{cursor:grabbing}
+.checks{display:grid;gap:8px}
+.checks label{cursor:pointer}
+input[type=checkbox]{accent-color:#236bc4}
+@media(max-width:600px) and (min-height:500px){.layout.menu-open{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}.side{order:-1;max-height:35vh;max-height:35dvh}}
 </style></head><body><main>
-<h1>カーブミラーで2つのヘッドライトが見えるしくみ</h1>
-<p>車と観測者を動かせます。2つの光は鏡面の<strong>異なる位置</strong>で反射して目に届きます。</p>
-<div class="layout"><section><div class="canvas">
+<header class="header"><h1>カーブミラー</h1><button id="menuToggle" type="button" aria-expanded="false" aria-controls="menu">メニューを表示</button></header>
+<div class="layout"><section class="scene-panel"><div class="canvas">
 <svg id="scene" viewBox="0 0 760 600" role="img" aria-label="交差点の俯瞰図と凸面鏡の反射光線">
 <rect width="760" height="600" fill="#f5f6f4"/><path d="M0 248H760V378H0Z M320 0H444V600H320Z" fill="#e2e5e9"/><path d="M0 313H320M444 313H760M382 0V248M382 378V600" stroke="#fff" stroke-width="2.5" stroke-dasharray="15 13"/>
 <path d="M0 248H320V0M444 0V248H760M0 378H320V600M444 600V378H760" stroke="#bfc7ce" stroke-width="2" fill="none"/>
-<text x="18" y="282" font-size="14" fill="#57616a">車 →</text>
+<text x="18" y="282" font-size="24" fill="#57616a">車 →</text>
 <g id="virtualLayer"></g><g id="rayLayer"></g><g id="mirrorLayer"></g><g id="normalLayer"></g><g id="objectsLayer"></g><g id="labelsLayer"></g>
 </svg>
-<div class="key"><span><i class="dot" style="background:#1873c9"></i>上側ライト</span><span><i class="dot" style="background:#d87b19"></i>下側ライト</span><span>実線：実際の光路</span><span>破線：光路の逆延長</span></div></div>
-<div class="view"><h2>観測者から見た鏡（方向の違いを拡大表示）</h2><svg id="eyeView" viewBox="0 0 700 170" role="img" aria-label="観測者から見た鏡の2つの光源の見かけの位置"></svg><div id="angleInfo" class="small"></div></div></section>
-<aside class="side"><h2>操作</h2><div class="control"><label for="car">車の位置 <output id="carLabel"></output></label><input type="range" id="car" min="80" max="286" value="195" step="1"></div><div class="control"><label for="observer">観測者の位置 <output id="obsLabel"></output></label><input type="range" id="observer" min="430" max="565" value="493" step="1"></div><div class="checks"><label><input id="virtual" type="checkbox" checked> 反射光の逆延長を表示</label><label><input id="normal" type="checkbox"> 反射点の法線を表示</label><label><input id="separate" type="checkbox" checked> 2つの光源を表示</label></div><button id="reset">初期位置に戻す</button><p class="small" style="margin-top:18px">青・橙それぞれの光線は、実際に反射の法則を満たす鏡上の位置を計算しています。観測者からの見え方は角度差を強調した模式図です。</p></aside></div>
-<div class="explain"><p><strong>ポイント：</strong>鏡の一点に2つのヘッドライトが重なって映るのではありません。光源ごとに反射点と反射方向が異なるため、観測者は2つの光を異なる方向に見ます。反射光を鏡の奥へ逆向きに延長すると、光が鏡の向こうから来たように見えることも説明できます。</p></div>
+</div></section>
+<aside id="menu" class="side" hidden><h2>操作</h2><div class="checks"><label><input id="rays" type="checkbox"> 光線を表示</label><label><input id="virtual" type="checkbox" checked> 反射光の逆延長を表示</label><label><input id="normal" type="checkbox"> 反射点の法線を表示</label><label><input id="separate" type="checkbox" checked> 2つの光源を表示</label></div></aside></div>
 </main><script>
 (()=>{'use strict';
 const NS='http://www.w3.org/2000/svg', $=id=>document.getElementById(id), V=(x,y)=>({x,y}),add=(a,b)=>V(a.x+b.x,a.y+b.y),sub=(a,b)=>V(a.x-b.x,a.y-b.y),mul=(a,s)=>V(a.x*s,a.y*s),dot=(a,b)=>a.x*b.x+a.y*b.y,unit=a=>mul(a,1/Math.hypot(a.x,a.y)),len=a=>Math.hypot(a.x,a.y);
 function e(parent,tag,props={},content){const node=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(props))node.setAttribute(k,v);if(content!==undefined)node.textContent=content;parent.append(node);return node}
 function ln(parent,a,b,props={}){return e(parent,'line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,...props})}
-const C=V(516,151),R=102,amin=106*Math.PI/180,amax=224*Math.PI/180;
+const state={car:195,observer:493};
+// Keep the mirror compact around the reflection points (about 125–137 degrees).
+const C=V(516,151),R=102,amin=116*Math.PI/180,amax=146*Math.PI/180;
 const point=t=>V(C.x+R*Math.cos(t),C.y+R*Math.sin(t));
 function specular(src,eye){ // minimize discrepancy between reflected incoming ray and eye direction
   const score=t=>{const p=point(t),n=unit(sub(p,C)),d=unit(sub(p,src)),ref=sub(d,mul(n,2*dot(d,n))),toEye=unit(sub(eye,p));return len(sub(ref,toEye))**2};
@@ -34,30 +53,53 @@ function specular(src,eye){ // minimize discrepancy between reflected incoming r
   for(const [a,b] of solutions){let lo=a,hi=b;for(let j=0;j<65;j++){const u=lo+(hi-lo)*.382,v=lo+(hi-lo)*.618;if(score(u)<score(v))hi=v;else lo=u}let t=(lo+hi)/2,p=point(t),n=unit(sub(p,C)),frontS=dot(unit(sub(src,p)),n),frontE=dot(unit(sub(eye,p)),n);let cost=score(t);if(frontS>0&&frontE>0&&(!best||cost<best.cost))best={p,n,t,cost};}
   return best;
 }
-function render(){for(const id of ['rayLayer','mirrorLayer','virtualLayer','normalLayer','objectsLayer','labelsLayer'])$(id).replaceChildren();const car=+$('car').value,oy=+$('observer').value,eye=V(382,oy),lights=[V(car+34,298),V(car+34,328)],colors=['#1873c9','#d87b19'],mirror=$('mirrorLayer'),rays=$('rayLayer'),vir=$('virtualLayer'),normals=$('normalLayer'),obj=$('objectsLayer'),lab=$('labelsLayer');
+function render(){for(const id of ['rayLayer','mirrorLayer','virtualLayer','normalLayer','objectsLayer','labelsLayer'])$(id).replaceChildren();const car=state.car,oy=state.observer,eye=V(382,oy),lights=[V(car+34,298),V(car+34,328)],colors=['#1873c9','#d87b19'],mirror=$('mirrorLayer'),rays=$('rayLayer'),vir=$('virtualLayer'),normals=$('normalLayer'),obj=$('objectsLayer'),lab=$('labelsLayer');
  // arc silvered towards intersection
  const a=point(amin),b=point(amax);const arc=`M${a.x},${a.y} A${R},${R} 0 0 1 ${b.x},${b.y}`;
- e(mirror,'path',{d:arc,fill:'none',stroke:'#8b959e','stroke-width':10,'stroke-linecap':'round'});e(mirror,'path',{d:arc,fill:'none',stroke:'#fefefe','stroke-width':5,'stroke-linecap':'round'});e(lab,'text',{x:566,y:290,'font-size':15,fill:'#44515c'},'凸面鏡');
- const answers=lights.map(s=>specular(s,eye));
+ e(mirror,'path',{d:arc,fill:'none',stroke:'#8b959e','stroke-width':10,'stroke-linecap':'round'});e(mirror,'path',{d:arc,fill:'none',stroke:'#fefefe','stroke-width':5,'stroke-linecap':'round'});
+ const answers=$('rays').checked?lights.map(s=>specular(s,eye)):[];
  answers.forEach((ans,i)=>{if(!ans|| (i===1&&!$('separate').checked))return;const p=ans.p,src=lights[i],color=colors[i];
  ln(rays,src,p,{stroke:color,'stroke-width':3});ln(rays,p,eye,{stroke:color,'stroke-width':3});e(rays,'circle',{cx:p.x,cy:p.y,r:5,fill:color,stroke:'#fff','stroke-width':1.5});
  const inv=unit(sub(p,eye));if($('virtual').checked){ln(vir,p,add(p,mul(inv,118)),{stroke:color,'stroke-width':2,'stroke-dasharray':'5 6',opacity:.75});}
  if($('normal').checked){ln(normals,add(p,mul(ans.n,-40)),add(p,mul(ans.n,45)),{stroke:'#7b4bb5','stroke-width':1.6,'stroke-dasharray':'5 4'});}
  });
- e(obj,'rect',{x:car-34,y:280,width:70,height:66,rx:12,fill:'#7d8b96',stroke:'#3b4650','stroke-width':2});e(obj,'rect',{x:car-5,y:288,width:24,height:50,rx:5,fill:'#d6e7ee'});lights.forEach((s,i)=>{if(i===1&&!$('separate').checked)return;e(obj,'rect',{x:s.x-5,y:s.y-6,width:10,height:12,rx:2,fill:colors[i],stroke:'#fff','stroke-width':1.5})});e(obj,'rect',{x:car-35,y:280,width:72,height:66,fill:'transparent','data-drag':'car'});
- e(obj,'circle',{cx:eye.x,cy:eye.y,r:16,fill:'#f0ce9d',stroke:'#6c655b','stroke-width':2});e(obj,'circle',{cx:eye.x,cy:eye.y,r:29,fill:'transparent','data-drag':'observer'});
- e(lab,'text',{x:eye.x+24,y:eye.y+5,'font-size':15,fill:'#37434d'},'観測者');
- $('carLabel').textContent=`${Math.round((car-80)/206*100)}%`;$('obsLabel').textContent=`${Math.round((oy-430)/135*100)}%`;
- const view=$('eyeView');view.replaceChildren();e(view,'rect',{x:12,y:10,width:676,height:135,rx:5,fill:'#eff2f5'});e(view,'rect',{x:95,y:21,width:510,height:105,rx:10,fill:'#d2dbe2',stroke:'#818e98','stroke-width':3});
- e(view,'line',{x1:350,y1:24,x2:350,y2:123,stroke:'#98a5af','stroke-dasharray':'4 5'});
- const active=answers.map((x,i)=>x&& (i===0||$('separate').checked)?i:-1).filter(i=>i>=0);
- const dirs=active.map(i=>Math.atan2(answers[i].p.y-eye.y,answers[i].p.x-eye.x));const center=dirs.reduce((s,d)=>s+d,0)/dirs.length;const diff=dirs.length===2?Math.abs((dirs[1]-dirs[0])*180/Math.PI):0;
- // Angular projection is deliberately exaggerated for visibility; exact separation reported below.
- const scale=diff>0?Math.min(750,Math.max(100,160/Math.max(diff,0.01))):100;
- active.forEach(i=>{const dx=(dirs[i]-center)*180/Math.PI,xx=Math.max(120,Math.min(580,350+dx*scale));e(view,'circle',{cx:xx,cy:71,r:12,fill:colors[i],stroke:'#fff','stroke-width':2});e(view,'text',{x:xx,y:108,'font-size':15,'text-anchor':'middle',fill:'#273542'},i===0?'上側':'下側')});
- $('angleInfo').textContent=active.length===2?`目に入る反射光の方向差：約 ${diff.toFixed(3)}°（上図は角度差を拡大して表示）`:'青いライトのみ表示中';
+ // Car seen directly from above, with its headlights facing right.
+ const body=e(obj,'g',{transform:`translate(${car},313)`,'data-visual':'car'});
+ for(const x of [-29,15])for(const y of [-29,22])e(body,'rect',{x,y,width:15,height:7,rx:2,fill:'#29343d'});
+ e(body,'path',{d:'M-30-25 H20 Q38-25 38-10 V10 Q38 25 20 25 H-30 Q-40 25-40 15 V-15 Q-40-25-30-25Z',fill:'#668ca9',stroke:'#344d60','stroke-width':2});
+ for(const y of [-15,8])e(body,'rect',{x:-40,y,width:5,height:7,rx:1.5,fill:'#bc4d49'});
+ e(body,'path',{d:'M-27-18 Q-31 0-27 18 L-18 20 V-20Z',fill:'#284b61',stroke:'#b7d4e2','stroke-width':1});
+ e(body,'path',{d:'M8-20 21-15 Q24 0 21 15 L8 20Z',fill:'#284b61',stroke:'#b7d4e2','stroke-width':1});
+ e(body,'rect',{x:-18,y:-17,width:25,height:34,rx:5,fill:'#8baec6',stroke:'#527991','stroke-width':1});
+ for(const y of [-23,19])e(body,'rect',{x:-16,y,width:21,height:4,rx:1,fill:'#284b61'});
+ for(const y of [-29,23])e(body,'rect',{x:10,y,width:8,height:6,rx:2,fill:'#668ca9',stroke:'#344d60','stroke-width':1});
+ e(body,'path',{d:'M26-11 Q30 0 26 11 M-35-10 V10',fill:'none',stroke:'#466b86','stroke-width':1.5});
+ e(body,'path',{d:'M13-15 18-12 M13-10 20-7',fill:'none',stroke:'#9ac5d9','stroke-width':1.5,'stroke-linecap':'round'});
+ lights.forEach((s,i)=>{if(i===1&&!$('separate').checked)return;e(obj,'rect',{x:s.x-4,y:s.y-5,width:8,height:10,rx:2,fill:colors[i],stroke:'#fff','stroke-width':1.5})});
+ e(obj,'rect',{x:car-43,y:280,width:86,height:66,fill:'transparent','data-drag':'car'});
+ // The head is viewed from above; shoulders and arms sit behind it.
+ const facing=point((amin+amax)/2),turn=Math.atan2(facing.y-eye.y,facing.x-eye.x)*180/Math.PI+90;
+ const person=e(obj,'g',{transform:`translate(${eye.x},${eye.y}) rotate(${turn})`,'data-visual':'observer'});
+ for(const x of [-7,7])e(person,'ellipse',{cx:x,cy:26,rx:5,ry:7,fill:'#344451'});
+ e(person,'ellipse',{cx:0,cy:13,rx:17,ry:12,fill:'#49789a',stroke:'#34556d','stroke-width':1.5});
+ for(const x of [-19,19]){e(person,'ellipse',{cx:x,cy:14,rx:5,ry:10,fill:'#628dad',stroke:'#34556d','stroke-width':1});e(person,'circle',{cx:x,cy:23,r:3.5,fill:'#e5bc91',stroke:'#a47f60','stroke-width':.7});}
+ e(person,'circle',{cx:0,cy:0,r:12,fill:'#e5bc91',stroke:'#a47f60','stroke-width':1});
+ for(const x of [-12,12])e(person,'ellipse',{cx:x,cy:1,rx:2.5,ry:4,fill:'#e5bc91'});
+ e(person,'path',{d:'M-11-4 Q-9-13 0-12 Q11-12 12-2 Q12 11 0 12 Q-12 11-11-4Z',fill:'#493a32'});
+ e(person,'path',{d:'M-6-5 Q0-10 6-5',fill:'none',stroke:'#6e5848','stroke-width':1.5,'stroke-linecap':'round'});
+ e(obj,'circle',{cx:eye.x,cy:eye.y+8,r:35,fill:'transparent','data-drag':'observer'});
+ e(lab,'text',{x:eye.x+36,y:eye.y+8,'font-size':24,fill:'#37434d'},'観測者');
  }
- ['car','observer','virtual','normal','separate'].forEach(id=>$(id).addEventListener('input',render));$('reset').addEventListener('click',()=>{$('car').value=195;$('observer').value=493;$('virtual').checked=true;$('normal').checked=false;$('separate').checked=true;render()});
- let drag=null;const scene=$('scene');function pos(ev){const p=scene.createSVGPoint();p.x=ev.clientX;p.y=ev.clientY;return p.matrixTransform(scene.getScreenCTM().inverse())}scene.addEventListener('pointerdown',ev=>{drag=ev.target.getAttribute('data-drag');if(drag){scene.setPointerCapture(ev.pointerId);ev.preventDefault()}});scene.addEventListener('pointermove',ev=>{if(!drag)return;const p=pos(ev);if(drag==='car')$('car').value=Math.max(80,Math.min(286,p.x));else $('observer').value=Math.max(430,Math.min(565,p.y));render()});scene.addEventListener('pointerup',()=>drag=null);scene.addEventListener('pointercancel',()=>drag=null);render();
+ ['rays','virtual','normal','separate'].forEach(id=>$(id).addEventListener('input',render));
+ $('menuToggle').addEventListener('click',()=>{const open=$('menu').hidden;$('menu').hidden=!open;document.querySelector('.layout').classList.toggle('menu-open',open);$('menuToggle').setAttribute('aria-expanded',String(open));$('menuToggle').textContent=open?'メニューを閉じる':'メニューを表示'});
+ const panel=document.querySelector('.scene-panel'),canvas=document.querySelector('.canvas');
+ // Fit the full diagram inside both available dimensions, keeping its aspect ratio.
+ new ResizeObserver(()=>{const width=Math.max(0,Math.min(panel.clientWidth,(panel.clientHeight-2)*760/600+2));canvas.style.width=`${width}px`;canvas.style.height=`${Math.max(0,(width-2)*600/760+2)}px`}).observe(panel);
+ let drag=null;const scene=$('scene');
+ function pos(ev){const p=scene.createSVGPoint();p.x=ev.clientX;p.y=ev.clientY;return p.matrixTransform(scene.getScreenCTM().inverse())}
+ scene.addEventListener('pointerdown',ev=>{const target=ev.target.getAttribute('data-drag');if(!target||drag||ev.button!==0)return;const p=pos(ev);drag={target,pointerId:ev.pointerId,offset:target==='car'?p.x-state.car:p.y-state.observer};scene.setPointerCapture(ev.pointerId);scene.classList.add('dragging');ev.preventDefault()});
+ scene.addEventListener('pointermove',ev=>{if(!drag||ev.pointerId!==drag.pointerId)return;const p=pos(ev);if(drag.target==='car')state.car=Math.max(80,Math.min(286,p.x-drag.offset));else state.observer=Math.max(430,Math.min(565,p.y-drag.offset));render()});
+ function endDrag(ev){if(!drag||ev.pointerId!==drag.pointerId)return;drag=null;scene.classList.remove('dragging');if(scene.hasPointerCapture(ev.pointerId))scene.releasePointerCapture(ev.pointerId)}
+ ['pointerup','pointercancel','lostpointercapture'].forEach(type=>scene.addEventListener(type,endDrag));render();
 })();
 </script></body></html>
