@@ -5,7 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-const model = html.split("(()=>{'use strict';")[1].split('let mirrorFrame=0;')[0];
+const model = html.split("(()=>{'use strict';")[1].split('let mirrorFrame=')[0];
 const createCamera = Function(model + 'return createCamera;')();
 const navigation = html.slice(html.indexOf(" const scene=$('scene'),camera="), html.lastIndexOf('})();'));
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-7, `${a} != ${b}`);

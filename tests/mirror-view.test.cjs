@@ -4,8 +4,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-const model = html.split("(()=>{'use strict';")[1].split('let mirrorFrame=0;')[0];
+const model = html.split("(()=>{'use strict';")[1].split('let mirrorFrame=')[0];
 const trace = Function(model + 'return traceMirror;')();
+const {buildMirrorCar, mirrorCarHit} = Function(model + 'return {buildMirrorCar,mirrorCarHit};')();
 
 function count(pixels, predicate) {
   let result = 0;
@@ -45,4 +46,20 @@ test('car movement and eye movement each change the reflected scene', () => {
   const initial = trace(195, 493, true, 160);
   assert.notDeepEqual(trace(260, 493, true, 160), initial);
   assert.notDeepEqual(trace(195, 550, true, 160), initial);
+});
+
+test('the reflected car has a sloping windshield, a white roof and separate wheel hubs', () => {
+  const car = buildMirrorCar(true);
+  const windshield = mirrorCarHit([100, 0, 24], [-1, 0, 0], car);
+  assert.equal(windshield.material, 3);
+  assert.ok(windshield.n[0] > 0 && windshield.n[2] > 0);
+  assert.equal(mirrorCarHit([0, 0, 100], [0, 0, -1], car).material, 9);
+  assert.equal(mirrorCarHit([-21.5, -100, 8], [0, 1, 0], car).material, 10);
+});
+
+test('front lights match the upper blue and lower red lights in the plan view', () => {
+  const car = buildMirrorCar(true);
+  assert.equal(mirrorCarHit([100, -15, 12], [-1, 0, 0], car).material, 4);
+  assert.equal(mirrorCarHit([100, 15, 12], [-1, 0, 0], car).material, 5);
+  assert.notEqual(mirrorCarHit([100, 15, 12], [-1, 0, 0], buildMirrorCar(false)).material, 5);
 });
